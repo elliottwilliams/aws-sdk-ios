@@ -526,6 +526,33 @@ jobs:
           name: Build projects
           command:
             python3 CircleciScripts/build_iossample.py "$(pwd)/aws-sdk-ios-samples"
+  
+  release_spm:
+    macos:
+      xcode: "12.1.0"
+    environment:
+      TERM: xterm-256color
+    steps:
+      - skip_job_unless_required
+      - checkout_with_cache
+      - set_environment_variables
+      - configure_aws
+    - restore_cache:
+          key: build_xcframeworks-result-{{ .Revision }}
+    - run:
+        name: Upload xcframework
+        command: |
+          python3 ./CircleciScripts/upload_xcframeworks.py
+        no_output_timeout: 100m
+    - run:
+        name: Update checksum and create PR
+        command: |
+          python3 ./CircleciScripts/update_checksum.py
+    - run:
+        name: Create a new tag 
+        command: |
+          ls
+
   release_ios_s3:
     macos:
       xcode: "12.1.0"
@@ -544,7 +571,7 @@ jobs:
           command: |
             mkdir -p "$sdkNameWithVersion"
             mv "xcframeworks/output/XCF/" "$sdkNameWithVersion/frameworks"
-            rm -rf "xcframeworks/output/XCF/"
+            rm -rf "xcframeworks/output/"
       - run:
           name: Copy SDK resource files
           command: |
@@ -1359,8 +1386,17 @@ workflows:
               ignore: /.*/
             tags:
               only: /^[0-9]+.[0-9]+.[0-9]+$/
+      - release_spm:
+          requires:
+            - build_xcframeworks
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^[0-9]+.[0-9]+.[0-9]+$/
       - release_ios_s3:
           requires:
+            - release_spm
             - build_xcframeworks
           filters:
             branches:
