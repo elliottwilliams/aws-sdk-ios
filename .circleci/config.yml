@@ -547,7 +547,7 @@ jobs:
     - run:
         name: Update checksum and create PR
         command: |
-          python3 ./CircleciScripts/update_checksum.py
+          python3 ./CircleciScripts/update_spm_checksum.py
     - run:
         name: Create a new tag 
         command: |
@@ -723,6 +723,7 @@ workflows:
             branches:
               only:
                 - bump_sdk_version
+  
   build_and_test:
     jobs:
       - build:
