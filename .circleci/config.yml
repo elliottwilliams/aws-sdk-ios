@@ -537,18 +537,29 @@ jobs:
       - checkout_with_cache
       - set_environment_variables
       - configure_aws
-    - restore_cache:
+      - restore_cache:
           key: build_xcframeworks-result-{{ .Revision }}
-    - run:
-        name: Upload xcframework
-        command: |
-          python3 ./CircleciScripts/upload_xcframeworks.py
+      - run:
+          name: Clone the spm repo
+          command: |
+            if [ -z "$target_branch" ]
+            then
+              target_branch="main"
+            fi
+            git clone https://github.com/aws-amplify/aws-sdk-ios-spm
+            cd aws-sdk-ios-spm
+            git checkout -b "versionUpdate-${CIRCLE_TAG}"
+            cd ..
+      - run:
+          name: Upload xcframework
+          command: |
+            python3 ./CircleciScripts/upload_xcframeworks.py
         no_output_timeout: 100m
-    - run:
+      - run:
         name: Update checksum and create PR
         command: |
           python3 ./CircleciScripts/update_spm_checksum.py
-    - run:
+      - run:
         name: Create a new tag 
         command: |
           ls
