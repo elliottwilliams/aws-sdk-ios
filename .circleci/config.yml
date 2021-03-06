@@ -527,7 +527,7 @@ jobs:
           command:
             python3 CircleciScripts/build_iossample.py "$(pwd)/aws-sdk-ios-samples"
   
-  release_spm:
+  release_spm_artifacts:
     macos:
       xcode: "12.1.0"
     environment:
@@ -551,18 +551,50 @@ jobs:
             git checkout -b "versionUpdate-${CIRCLE_TAG}"
             cd ..
       - run:
-          name: Upload xcframework
+          name: Prepare XCFramework archives
           command: |
-            python3 ./CircleciScripts/upload_xcframeworks.py
+            python3 ./CircleciScripts/prepare_xcframework_archives.py
         no_output_timeout: 100m
       - run:
-        name: Update checksum and create PR
-        command: |
-          python3 ./CircleciScripts/update_spm_checksum.py
+          name: Update spm manifest version
+          command: |
+            python3 ./CircleciScripts/update_spm_version.py
       - run:
-        name: Create a new tag 
-        command: |
-          ls
+          name: Upload release artifacts to S3
+          command: |
+            python3 ./CircleciScripts/upload_xcframeworks.py
+          no_output_timeout: 100m
+      - run:
+          name: Stage changes
+          command: |
+            cd aws-sdk-ios-spm
+            git config --local user.name "${GITHUB_BUMPVERSION_USER}"
+            gitstatus=$(git status)
+            echo $gitstatus
+            if [[ $gitstatus == *"Changes not staged for commit:"* ]]; then
+              git add .
+            else
+              echo "No changes for sample application bump version"
+              circleci step halt
+            fi
+      - run:
+          name: Check in changes
+          command: |
+            if [ -z "$target_branch" ]
+            then
+              target_branch="release"
+            fi
+            cd aws-sdk-ios-spm
+            git status
+            git config --local user.name "${GITHUB_BUMPVERSION_USER}"
+            commit_message="[bump version $release_version]"
+            git commit -m "${commit_message}"
+            git push --force -q https://${GITHUB_BUMPVERSION_TOKEN}@github.com/${GITHUB_BUMPVERSION_USER}/aws-sdk-ios-spm.git
+            title="${bump_version_pr_title}"
+            content="${commit_message}"
+            echo "title:$title"
+            echo "content:$content"
+            python3 ../CircleciScripts/create_pullrequest.py "${GITHUB_BUMPVERSION_USER}" "${GITHUB_BUMPVERSION_TOKEN}" "$title" "$content" "$target_branch" "${GITHUB_BUMPVERSION_USER}:bump_version" ${bumpversion_repo_user} ${bumpversion_repo_name}
 
   release_ios_s3:
     macos:
